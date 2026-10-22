@@ -118,16 +118,24 @@ flowchart LR
 ### 4.1 Exploration of Design Choices & Rejected Hypotheses
 
 Before executing the multi-stage ablation grid, four candidate hypotheses were analyzed and formally filtered:
-- **Projector Compression vs. Deep Normalized MLPs:** Residual skip-connections and spatial average pooling (token compression) were evaluated and rejected; compressing below 49 tokens discards fine spatial layout on dense charts, whereas a deeper pre-LayerNorm MLP (`E2-B`) preserves full $7\times 7$ spatial resolution while stabilizing cross-modal gradient norms.
-- **Full Fine-Tuning (FFT) vs. SVD-Initialized PEFT (PiSSA):** Full fine-tuning of `Qwen3-0.6B` (600M parameters) on 56k MCQs poses a high risk of catastrophic forgetting of pre-trained linguistic priors. Instead of standard Gaussian/zero-initialized LoRA, we adopted **PiSSA**, which performs Singular Value Decomposition (SVD) on pre-trained weight matrices $\mathbf{W} \in \mathbb{R}^{d_{\text{out}} \times d_{\text{in}}}$ and initializes the trainable low-rank adapters $\mathbf{A}, \mathbf{B}$ directly with the top-$r$ principal singular values and vectors:
 
-  $$\mathbf{W} = \mathbf{U}\mathbf{\Sigma}\mathbf{V}^\top = \mathbf{B}_{\text{init}}\mathbf{A}_{\text{init}} + \mathbf{W}_{\text{res}}$$
+#### 1. Projector Compression vs. Deep Normalized MLPs
+Residual skip-connections and spatial average pooling (token compression) were evaluated and rejected; compressing below 49 tokens discards fine spatial layout on dense charts, whereas a deeper pre-LayerNorm MLP (`E2-B`) preserves full $7\times 7$ spatial resolution while stabilizing cross-modal gradient norms.
 
-  where $\mathbf{B}_{\text{init}} = \mathbf{U}_{[:, :r]}\mathbf{\Sigma}_{[:r, :r]}^{1/2}$ and $\mathbf{A}_{\text{init}} = \mathbf{\Sigma}_{[:r, :r]}^{1/2}\mathbf{V}_{[:, :r]}^\top$.
+#### 2. Full Fine-Tuning (FFT) vs. SVD-Initialized PEFT (PiSSA)
+Full fine-tuning of `Qwen3-0.6B` (600M parameters) on 56k MCQs poses a high risk of catastrophic forgetting of pre-trained linguistic priors. Instead of standard Gaussian/zero-initialized LoRA, we adopted **PiSSA**, which performs Singular Value Decomposition (SVD) on pre-trained weight matrices $\mathbf{W} \in \mathbb{R}^{d_{\mathrm{out}} \times d_{\mathrm{in}}}$ and initializes the trainable low-rank adapters $\mathbf{A}, \mathbf{B}$ directly with the top-$r$ principal singular values and vectors:
 
-  Keeping $\mathbf{W}_{\text{res}}$ frozen and updating the principal subspace ($r=32, \alpha=64$) across all 7 linear projections (`q_proj`, `k_proj`, `v_proj`, `o_proj`, `gate_proj`, `up_proj`, `down_proj`) accelerated convergence and delivered our largest single accuracy jump (**+3.30%**).
-- **Chain-of-Thought (CoT) vs. Static Concise Prompting:** CoT prompting was rejected because sub-1B language models frequently hallucinate intermediate rationales when trained without ground-truth reasoning traces, and longer prompts dilute self-attention weights over the 49 visual tokens.
-- **Geometric Flipping vs. Photometric Jitter & Semantic Option Shuffling:** Random horizontal flips or crops corrupt directional MCQs (*"Which component is shown on the left side?"*) and clip edge text. Instead, we combined photometric **ColorJitter** (`brightness=0.2, contrast=0.2, saturation=0.2, hue=0.05`) with **dynamic MCQ option reshuffling** (`shuffle_options_in_batch`), eliminating small-LLM positional bias toward options `A` and `C`.
+$$\mathbf{W} = \mathbf{U}\mathbf{\Sigma}\mathbf{V}^\top = \mathbf{B}_{\mathrm{init}}\mathbf{A}_{\mathrm{init}} + \mathbf{W}_{\mathrm{res}}$$
+
+where $\mathbf{B}_{\mathrm{init}} = \mathbf{U}_{[:, 1:r]}\mathbf{\Sigma}_{[1:r, 1:r]}^{1/2}$ and $\mathbf{A}_{\mathrm{init}} = \mathbf{\Sigma}_{[1:r, 1:r]}^{1/2}\mathbf{V}_{[:, 1:r]}^\top$.
+
+Keeping $\mathbf{W}_{\mathrm{res}}$ frozen and updating the principal subspace ($r=32, \alpha=64$) across all 7 linear projections (`q_proj`, `k_proj`, `v_proj`, `o_proj`, `gate_proj`, `up_proj`, `down_proj`) accelerated convergence and delivered our largest single accuracy jump (**+3.30%**).
+
+#### 3. Chain-of-Thought (CoT) vs. Static Concise Prompting
+CoT prompting was rejected because sub-1B language models frequently hallucinate intermediate rationales when trained without ground-truth reasoning traces, and longer prompts dilute self-attention weights over the 49 visual tokens.
+
+#### 4. Geometric Flipping vs. Photometric Jitter & Semantic Option Shuffling
+Random horizontal flips or crops corrupt directional MCQs (*"Which component is shown on the left side?"*) and clip edge text. Instead, we combined photometric **ColorJitter** (`brightness=0.2, contrast=0.2, saturation=0.2, hue=0.05`) with **dynamic MCQ option reshuffling** (`shuffle_options_in_batch`), eliminating small-LLM positional bias toward options `A` and `C`.
 
 ### 4.2 Quantitative Progression Across Experiments (Table 1)
 
