@@ -1,0 +1,35 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# PyTest / Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environments
+.env
+.venv
+env/
+venv/
+
+# Model checkpoints & raw bulk datasets
+*.pth
+*.pt
+*.ckpt
+*.safetensors
+images/
+*.zip
+__MACOSX/
+.DS_Store
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+*.ipynb
