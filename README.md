@@ -18,7 +18,7 @@ Standard vision-language models built on OpenAI's CLIP (`ViT-B/32` or `ViT-L/14`
 
 This repository addresses two coupled challenges in modern Multimodal Visual Question Answering (VQA):
 1. **Long-Context Contrastive Image-to-Question Reconstruction (Task 1):** Given an unindexed bulk pool of $1,600$ validation and test images (`images/test_val/`) and multi-sentence descriptive captions (`caption_val_student.jsonl`, `caption_test_student.jsonl`), we leverage **LongCLIP**'s extended 248-token representation space to reconstruct exact image-to-MCQ mappings prior to instruction tuning.
-2. **Resource-Efficient Cross-Modal Reasoning (Tasks 2–4):** We stitch the LongCLIP vision encoder ($768$-dim patch features) to an instruction-capable **Qwen3-0.6B** language backbone ($1024$-dim hidden states) via a normalized multi-layer MLP projector, and systematically evaluate **five progressive optimization stages**-spanning structural EOS label discipline, 3-layer pre-LayerNorm MLP connectors, **PiSSA (Principal Singular values and Singular vectors Adaptation)**, selective vision tower unfreezing, **ColorJitter + Dynamic Option Permutation**, and **Test-Time Compute (Self-Consistency Ensembling)**.
+2. **Resource-Efficient Cross-Modal Reasoning (Tasks 2-4):** We stitch the LongCLIP vision encoder ($768$-dim patch features) to an instruction-capable **Qwen3-0.6B** language backbone ($1024$-dim hidden states) via a normalized multi-layer MLP projector, and systematically evaluate **five progressive optimization stages**-spanning structural EOS label discipline, 3-layer pre-LayerNorm MLP connectors, **PiSSA (Principal Singular values and Singular vectors Adaptation)**, selective vision tower unfreezing, **ColorJitter + Dynamic Option Permutation**, and **Test-Time Compute (Self-Consistency Ensembling)**.
 
 ---
 
@@ -213,18 +213,18 @@ longclip-llava-multimodal-vqa/
 ├── data/
 │   └── vqa_test_predictions.jsonl      # Final 5,538 test-set predictions (67.62% accuracy, Rank #18)
 ├── docs/assets/
-│   ├── vqa_optimization_ablation.png   # High-res E1–E4-B epoch trajectory & ablation bar chart
+│   ├── vqa_optimization_ablation.png   # High-res E1-E4-B epoch trajectory & ablation bar chart
 │   ├── e5_test_time_compute.png        # High-res E5 temperature & majority-voting grid search chart
 │   └── report_page1_img1.png           # Extracted LongCLIP 99.83% alignment verification log
 ├── scripts/
-│   ├── train_vqa.py                    # CLI entrypoint for Task 1 alignment & E1–E4-B training presets
+│   ├── train_vqa.py                    # CLI entrypoint for Task 1 alignment & E1-E4-B training presets
 │   └── evaluate_vqa.py                 # CLI entrypoint for VQA accuracy & test prediction inspection
 ├── src/multimodal_vqa/
 │   ├── __init__.py                     # Package exports
 │   ├── longclip_encoder.py             # LongCLIP 77->248 positional interpolation & cosine alignment
 │   ├── llava_arch.py                   # Custom LLaVA builder, 2/3-layer LN-MLP projectors & PiSSA PEFT
 │   ├── dataset.py                      # VQADataset, 49-token <image> expansion & dynamic option shuffle
-│   ├── trainer.py                      # Prompt-masked causal LM training loop & E1–E4-B presets
+│   ├── trainer.py                      # Prompt-masked causal LM training loop & E1-E4-B presets
 │   └── evaluate.py                     # Greedy & Self-Consistency ensemble inference + regex parser
 ├── tests/
 │   └── test_multimodal_vqa.py          # Comprehensive unit test suite (19/19 passing)
