@@ -14,11 +14,11 @@
 
 ## 1. Objective & Motivation: Overcoming CLIP's 77-Token Bottleneck
 
-Standard vision-language models built on OpenAI's CLIP (`ViT-B/32` or `ViT-L/14`) inherit a rigid architectural bottleneck: **a hard text context ceiling of 77 tokens** (and an effective receptive field empirically closer to ~20 tokens). When aligning dense multi-attribute visual scenes—such as scientific charts, exploded mechanical diagrams, nutritional labels, and fine-grained product photography—against multi-sentence descriptions, standard CLIP truncates critical spatial and relational details.
+Standard vision-language models built on OpenAI's CLIP (`ViT-B/32` or `ViT-L/14`) inherit a rigid architectural bottleneck: **a hard text context ceiling of 77 tokens** (and an effective receptive field empirically closer to ~20 tokens). When aligning dense multi-attribute visual scenes, such as scientific charts, exploded mechanical diagrams, nutritional labels, and fine-grained product photography-against multi-sentence descriptions, standard CLIP truncates critical spatial and relational details.
 
 This repository addresses two coupled challenges in modern Multimodal Visual Question Answering (VQA):
 1. **Long-Context Contrastive Image-to-Question Reconstruction (Task 1):** Given an unindexed bulk pool of $1,600$ validation and test images (`images/test_val/`) and multi-sentence descriptive captions (`caption_val_student.jsonl`, `caption_test_student.jsonl`), we leverage **LongCLIP**'s extended 248-token representation space to reconstruct exact image-to-MCQ mappings prior to instruction tuning.
-2. **Resource-Efficient Cross-Modal Reasoning (Tasks 2–4):** We stitch the LongCLIP vision encoder ($768$-dim patch features) to an instruction-capable **Qwen3-0.6B** language backbone ($1024$-dim hidden states) via a normalized multi-layer MLP projector, and systematically evaluate **five progressive optimization stages**—spanning structural EOS label discipline, 3-layer pre-LayerNorm MLP connectors, **PiSSA (Principal Singular values and Singular vectors Adaptation)**, selective vision tower unfreezing, **ColorJitter + Dynamic Option Permutation**, and **Test-Time Compute (Self-Consistency Ensembling)**.
+2. **Resource-Efficient Cross-Modal Reasoning (Tasks 2–4):** We stitch the LongCLIP vision encoder ($768$-dim patch features) to an instruction-capable **Qwen3-0.6B** language backbone ($1024$-dim hidden states) via a normalized multi-layer MLP projector, and systematically evaluate **five progressive optimization stages**-spanning structural EOS label discipline, 3-layer pre-LayerNorm MLP connectors, **PiSSA (Principal Singular values and Singular vectors Adaptation)**, selective vision tower unfreezing, **ColorJitter + Dynamic Option Permutation**, and **Test-Time Compute (Self-Consistency Ensembling)**.
 
 ---
 
@@ -127,7 +127,9 @@ Full fine-tuning of `Qwen3-0.6B` (600M parameters) on 56k MCQs poses a high risk
 
 $$\mathbf{W} = \mathbf{U}\mathbf{\Sigma}\mathbf{V}^\top = \mathbf{B}_{\mathrm{init}}\mathbf{A}_{\mathrm{init}} + \mathbf{W}_{\mathrm{res}}$$
 
-where $\mathbf{B}_{\mathrm{init}} = \mathbf{U}_{[:, 1:r]}\mathbf{\Sigma}_{[1:r, 1:r]}^{1/2}$ and $\mathbf{A}_{\mathrm{init}} = \mathbf{\Sigma}_{[1:r, 1:r]}^{1/2}\mathbf{V}_{[:, 1:r]}^\top$.
+where the initial adapter factors are derived from the top-$r$ singular components:
+
+$$\mathbf{B}_{\mathrm{init}} = \mathbf{U}_{[:, 1:r]}\mathbf{\Sigma}_{[1:r, 1:r]}^{1/2}, \qquad \mathbf{A}_{\mathrm{init}} = \mathbf{\Sigma}_{[1:r, 1:r]}^{1/2}\mathbf{V}_{[:, 1:r]}^\top$$
 
 Keeping $\mathbf{W}_{\mathrm{res}}$ frozen and updating the principal subspace ($r=32, \alpha=64$) across all 7 linear projections (`q_proj`, `k_proj`, `v_proj`, `o_proj`, `gate_proj`, `up_proj`, `down_proj`) accelerated convergence and delivered our largest single accuracy jump (**+3.30%**).
 
@@ -143,13 +145,13 @@ Random horizontal flips or crops corrupt directional MCQs (*"Which component is 
 
 | Experiment ID | Architectural & Training Configuration | Epoch 1 | Epoch 2 | Epoch 3 | Epoch 4 | Epoch 5 | Epoch 6 | Epoch 7 | Peak Val Accuracy | $\Delta$ vs. E1 Baseline |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Task 2 (Raw)** | 2-Layer Linear-GELU-Linear, Frozen Vision, No EOS Token *(noisy multi-token output)* | — | — | 67.18%* | — | — | — | — | *67.18%* | *Unconstrained* |
-| **E1 (Baseline)** | Strict `<\|im_end\|>` EOS Target + Prompt Masking (`-100`), Constant LR `2e-5` | — | — | **61.61%** | — | — | — | — | **61.61%** | **Baseline** |
-| **E2-A** | **2-Layer Pre-LN MLP** (`LN → Linear → GELU → Linear`) + Cosine LR (`3%` warmup) | 61.33% | 63.21% | **64.15%** | 63.79% | 64.03% | — | — | **64.15%** | `+2.54%` |
-| **E2-B** | **3-Layer Pre-LN MLP** (`LN → Lin → GELU → Lin → GELU → Lin`) + Cosine LR | 61.24% | 63.79% | **64.76%** | 64.61% | 64.73% | — | — | **64.76%** | `+3.15%` |
-| **E3-A** | `E2-B` + **PiSSA PEFT (`r=32, α=64`)** on Qwen3 (`q,k,v,o,gate,up,down`) | 64.00% | 66.76% | **68.06%** | 67.79% | 66.94% | — | — | **68.06%** | `+6.45%` |
-| **E3-B** | `E3-A` + **Mixed Vision Unfreezing** (Last 2 LongCLIP ViT Blocks `layers[-2:]`) | 64.06% | 66.61% | **68.39%** | 67.85% | 67.09% | — | — | **68.39%** | `+6.78%` |
-| **E4-A** | `E3-B` + **Visual Augmentation** (`ColorJitter(0.2, 0.2, 0.2, 0.05)`) | 64.12% | 66.30% | 67.76% | **68.55%** | 68.42% | — | — | **68.55%** | `+6.94%` |
+| **Task 2 (Raw)** | 2-Layer Linear-GELU-Linear, Frozen Vision, No EOS Token *(noisy multi-token output)* | - |: | 67.18%* | - |: | - |: | *67.18%* | *Unconstrained* |
+| **E1 (Baseline)** | Strict `<\|im_end\|>` EOS Target + Prompt Masking (`-100`), Constant LR `2e-5` | - |: | **61.61%** | - |: | - |: | **61.61%** | **Baseline** |
+| **E2-A** | **2-Layer Pre-LN MLP** (`LN → Linear → GELU → Linear`) + Cosine LR (`3%` warmup) | 61.33% | 63.21% | **64.15%** | 63.79% | 64.03% | - |: | **64.15%** | `+2.54%` |
+| **E2-B** | **3-Layer Pre-LN MLP** (`LN → Lin → GELU → Lin → GELU → Lin`) + Cosine LR | 61.24% | 63.79% | **64.76%** | 64.61% | 64.73% | - |: | **64.76%** | `+3.15%` |
+| **E3-A** | `E2-B` + **PiSSA PEFT (`r=32, α=64`)** on Qwen3 (`q,k,v,o,gate,up,down`) | 64.00% | 66.76% | **68.06%** | 67.79% | 66.94% | - |: | **68.06%** | `+6.45%` |
+| **E3-B** | `E3-A` + **Mixed Vision Unfreezing** (Last 2 LongCLIP ViT Blocks `layers[-2:]`) | 64.06% | 66.61% | **68.39%** | 67.85% | 67.09% | - |: | **68.39%** | `+6.78%` |
+| **E4-A** | `E3-B` + **Visual Augmentation** (`ColorJitter(0.2, 0.2, 0.2, 0.05)`) | 64.12% | 66.30% | 67.76% | **68.55%** | 68.42% | - |: | **68.55%** | `+6.94%` |
 | **E4-B (Final)** | `E4-A` + **Dynamic Semantic Option Permutation** (`shuffle_options_in_batch`, 7 Epochs) | 63.36% | 67.00% | 68.00% | 68.76% | **69.12%** | 67.79% | 67.58% | **69.12%** | **`+7.51%`** |
 
 ### 4.3 Experiment 5 (E5): Test-Time Compute & Self-Consistency Grid Search (Table 2)
@@ -180,7 +182,7 @@ Evaluating the locked `E4-B + E5 (T=0.0, N=1)` model across the **5,538 hidden t
 
 | Evaluation Split | Total Questions | Unique Images | Official VQA Accuracy | Cohort Standing |
 | :--- | :---: | :---: | :---: | :---: |
-| **Validation Set** (`vqa_val_teacher.jsonl`) | $3,300$ | $600$ | **69.12%** (Peak) / **69.03%** (E5 Lock) | — |
+| **Validation Set** (`vqa_val_teacher.jsonl`) | $3,300$ | $600$ | **69.12%** (Peak) / **69.03%** (E5 Lock) | - |
 | **Hidden Test Set** (`vqa_test_predictions.jsonl`) | $5,538$ | $1,000$ | **67.62%** | **Rank #18** |
 
 ### Test-Set Option Distribution (`data/vqa_test_predictions.jsonl`)
